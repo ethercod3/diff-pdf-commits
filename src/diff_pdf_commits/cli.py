@@ -5,7 +5,7 @@ import sys
 
 import click
 
-from .config import DiffConfig, safe_label
+from .config import DiffConfig, parse_env_option, safe_label
 from .errors import DiffPdfCommitsError
 from .git import git_root
 from .runner import DiffRunner
@@ -15,14 +15,27 @@ from .runner import DiffRunner
 @click.argument("left_ref")
 @click.argument("right_ref")
 @click.option("--build", "build_command", required=True, help="Shell command that builds the PDF in each worktree.")
-@click.option("--pdf", "pdf_path", required=True, type=click.Path(path_type=Path), help="PDF path relative to repo root.")
+@click.option(
+    "--pdf", "pdf_path", required=True, type=click.Path(path_type=Path), help="PDF path relative to repo root."
+)
 @click.option("--repo", type=click.Path(path_type=Path), default=Path.cwd(), help="Path inside the git repository.")
-@click.option("--out", "output_dir", type=click.Path(path_type=Path), default=Path(".pdf-diff"), help="Output directory.")
-@click.option("--diff-output", type=click.Path(path_type=Path), default=None, help="Write visual diff PDF to this path.")
+@click.option(
+    "--out", "output_dir", type=click.Path(path_type=Path), default=Path(".pdf-diff"), help="Output directory."
+)
+@click.option(
+    "--diff-output", type=click.Path(path_type=Path), default=None, help="Write visual diff PDF to this path."
+)
 @click.option("--view/--no-view", default=False, help="Open diff-pdf GUI viewer.")
 @click.option("--no-diff", is_flag=True, help="Only build and export both PDFs; do not run diff-pdf.")
 @click.option("--keep-worktrees", is_flag=True, help="Keep temporary git worktrees for debugging.")
 @click.option("--dirty", type=click.Choice(["fail", "allow"]), default="fail", show_default=True)
+@click.option(
+    "--env",
+    "env_options",
+    multiple=True,
+    metavar="KEY=VALUE",
+    help="Environment variable passed to the build command. Can be used more than once.",
+)
 def main(
     left_ref: str,
     right_ref: str,
@@ -35,10 +48,19 @@ def main(
     no_diff: bool,
     keep_worktrees: bool,
     dirty: str,
+    env_options: tuple[str, ...],
 ) -> None:
     """Build PDF from LEFT_REF and RIGHT_REF, then compare them with diff-pdf."""
     try:
         repo_root = git_root(repo.resolve())
+        build_env: dict[str, str] = {}
+        for env_option in env_options:
+            try:
+                key, value = parse_env_option(env_option)
+            except ValueError as error:
+                raise DiffPdfCommitsError(f"Invalid --env {env_option!r}: {error}") from error
+            build_env[key] = value
+
         if not output_dir.is_absolute():
             output_dir = repo_root / output_dir
         if diff_output is None and not view and not no_diff:
@@ -58,6 +80,7 @@ def main(
             no_diff=no_diff,
             keep_worktrees=keep_worktrees,
             dirty=dirty,
+            build_env=build_env,
         )
         raise SystemExit(DiffRunner(config).run())
     except DiffPdfCommitsError as error:

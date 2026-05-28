@@ -42,7 +42,12 @@ class DiffRunner:
 
     def build_one(self, side: str, ref: str, worktree: Path) -> Path:
         cfg = self.config
-        run_shell(cfg.build_command, cwd=worktree, log_path=cfg.logs_dir / f"build-{side}.log")
+        run_shell(
+            cfg.build_command,
+            cwd=worktree,
+            log_path=cfg.logs_dir / f"build-{side}.log",
+            extra_env=cfg.build_env,
+        )
         source_pdf = worktree / cfg.pdf_path
         if not source_pdf.is_file():
             raise DiffPdfCommitsError(f"Build for {ref} did not create expected PDF: {source_pdf}")

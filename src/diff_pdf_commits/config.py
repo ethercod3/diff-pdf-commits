@@ -8,6 +8,13 @@ def safe_label(value: str) -> str:
     return "".join(char if char.isalnum() or char in {"-", "_", "."} else "_" for char in value)
 
 
+def parse_env_option(value: str) -> tuple[str, str]:
+    key, separator, env_value = value.partition("=")
+    if not separator or not key:
+        raise ValueError("expected KEY=VALUE")
+    return key, env_value
+
+
 @dataclass(frozen=True)
 class DiffConfig:
     repo: Path
@@ -21,6 +28,7 @@ class DiffConfig:
     no_diff: bool
     keep_worktrees: bool
     dirty: str
+    build_env: dict[str, str]
 
     @property
     def run_dir(self) -> Path:

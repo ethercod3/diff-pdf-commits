@@ -81,6 +81,59 @@ def test_no_diff_exports_built_pdfs_from_both_refs(tmp_path: Path) -> None:
     assert (pdfs_dir / "right-HEAD-artifact.pdf").read_bytes() == b"%PDF-1.4\nright\n%%EOF\n"
 
 
+def test_no_diff_passes_env_to_build_command(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init")
+    git(repo, "config", "user.email", "test@example.invalid")
+    git(repo, "config", "user.name", "Test User")
+
+    (repo / "build.py").write_text(
+        "\n".join(
+            [
+                "import os",
+                "from pathlib import Path",
+                "payload = os.environ['PDF_TEST_PAYLOAD'].encode('utf-8')",
+                "Path('artifact.pdf').write_bytes(b'%PDF-1.4\\n' + payload + b'\\n%%EOF\\n')",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    commit(repo, "left")
+    (repo / "marker.txt").write_text("right\n", encoding="utf-8")
+    commit(repo, "right")
+
+    output_dir = tmp_path / "out"
+    build_command = f'"{sys.executable}" build.py'
+    result = CliRunner().invoke(
+        main,
+        [
+            "HEAD~1",
+            "HEAD",
+            "--repo",
+            str(repo),
+            "--build",
+            build_command,
+            "--pdf",
+            "artifact.pdf",
+            "--out",
+            str(output_dir),
+            "--no-diff",
+            "--env",
+            "PDF_TEST_PAYLOAD=from-env",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    pdfs_dir = output_dir / "HEAD_1__HEAD" / "pdfs"
+    assert (pdfs_dir / "left-HEAD_1-artifact.pdf").read_bytes() == b"%PDF-1.4\nfrom-env\n%%EOF\n"
+    assert (pdfs_dir / "right-HEAD-artifact.pdf").read_bytes() == b"%PDF-1.4\nfrom-env\n%%EOF\n"
+    assert "PDF_TEST_PAYLOAD=from-env" in (output_dir / "HEAD_1__HEAD" / "logs" / "build-left.log").read_text(
+        encoding="utf-8"
+    )
+
+
 def docker_is_available() -> bool:
     try:
         result = subprocess.run(

@@ -19,7 +19,7 @@ uvx diff-pdf-commits HEAD~1 HEAD --build "latexmk -lualatex main.tex" --pdf main
 From GitHub before publishing to PyPI:
 
 ```bash
-uvx --from git+https://github.com/<owner>/diff-pdf-commits diff-pdf-commits HEAD~1 HEAD --build "task latex:local" --pdf thesis.pdf
+uvx --from git+https://github.com/ethercod3/diff-pdf-commits diff-pdf-commits HEAD~1 HEAD --build "task latex:local" --pdf thesis.pdf
 ```
 
 Local development:
@@ -62,6 +62,24 @@ Only build and export both PDFs without running `diff-pdf`:
 
 ```bash
 diff-pdf-commits main feature/pdf-change --build "latexmk -pdf main.tex" --pdf main.pdf --no-diff
+```
+
+Pass environment variables to the build command:
+
+```bash
+diff-pdf-commits HEAD~1 HEAD \
+  --build "task latex:local" \
+  --pdf thesis.pdf \
+  --env UV_PYTHON=/path/to/python
+```
+
+On Windows this is useful when another application ships a `python.exe` earlier on `PATH`:
+
+```powershell
+uvx --from git+https://github.com/ethercod3/diff-pdf-commits diff-pdf-commits HEAD~1 HEAD `
+  --build "task latex:local" `
+  --pdf thesis.pdf `
+  --env "UV_PYTHON=C:\Users\User\AppData\Local\Programs\Python\Python313\python.exe"
 ```
 
 Use it from the original diploma project:

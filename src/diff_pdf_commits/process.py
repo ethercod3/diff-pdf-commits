@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import subprocess
 
@@ -27,12 +28,18 @@ def run_command(command: list[str], *, cwd: Path | None = None, check: bool = Tr
     return completed
 
 
-def run_shell(command: str, *, cwd: Path, log_path: Path) -> CommandResult:
-    result = subprocess.run(command, cwd=cwd, shell=True, check=False, capture_output=True)
+def run_shell(command: str, *, cwd: Path, log_path: Path, extra_env: dict[str, str] | None = None) -> CommandResult:
+    env = None
+    if extra_env:
+        env = os.environ.copy()
+        env.update(extra_env)
+
+    result = subprocess.run(command, cwd=cwd, shell=True, check=False, capture_output=True, env=env)
     completed = CommandResult(result.returncode, decode_output(result.stdout), decode_output(result.stderr))
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    env_lines = "".join(f"{key}={value}\n" for key, value in sorted((extra_env or {}).items()))
     log_path.write_text(
-        f"$ {command}\n\n[stdout]\n{completed.stdout}\n\n[stderr]\n{completed.stderr}\n",
+        f"$ {command}\n\n[env]\n{env_lines}\n[stdout]\n{completed.stdout}\n\n[stderr]\n{completed.stderr}\n",
         encoding="utf-8",
     )
     if completed.returncode != 0:
