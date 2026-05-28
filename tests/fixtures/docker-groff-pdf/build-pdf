@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+
+input="${1:-document.ms}"
+output="${2:-artifact.pdf}"
+
+groff -Tpdf -ms "$input" > "$output"
