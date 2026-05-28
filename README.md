@@ -113,6 +113,8 @@ uvx --from ../diff-pdf-commits diff-pdf-commits HEAD~1 HEAD \
 
 The current working tree is not checked out to another commit. That is the main design improvement over the original project-local script.
 
+Build output is streamed live to the terminal and also saved under `.pdf-diff/.../logs`. The CLI shows a progress bar for the high-level steps: worktree creation, copied local files, left/right builds, diff generation, and cleanup.
+
 ## Requirements
 
 Required:
