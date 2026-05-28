@@ -134,6 +134,57 @@ def test_no_diff_passes_env_to_build_command(tmp_path: Path) -> None:
     )
 
 
+def test_no_diff_copies_local_file_into_each_worktree_before_build(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init")
+    git(repo, "config", "user.email", "test@example.invalid")
+    git(repo, "config", "user.name", "Test User")
+
+    (repo / ".gitignore").write_text(".env\n", encoding="utf-8")
+    (repo / ".env").write_text("payload=from-dotenv\n", encoding="utf-8")
+    (repo / "build.py").write_text(
+        "\n".join(
+            [
+                "from pathlib import Path",
+                "payload = Path('.env').read_text(encoding='utf-8').strip().split('=', 1)[1]",
+                "Path('artifact.pdf').write_bytes(b'%PDF-1.4\\n' + payload.encode('utf-8') + b'\\n%%EOF\\n')",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    commit(repo, "left")
+    (repo / "marker.txt").write_text("right\n", encoding="utf-8")
+    commit(repo, "right")
+
+    output_dir = tmp_path / "out"
+    build_command = f'"{sys.executable}" build.py'
+    result = CliRunner().invoke(
+        main,
+        [
+            "HEAD~1",
+            "HEAD",
+            "--repo",
+            str(repo),
+            "--build",
+            build_command,
+            "--pdf",
+            "artifact.pdf",
+            "--out",
+            str(output_dir),
+            "--no-diff",
+            "--copy",
+            ".env",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    pdfs_dir = output_dir / "HEAD_1__HEAD" / "pdfs"
+    assert (pdfs_dir / "left-HEAD_1-artifact.pdf").read_bytes() == b"%PDF-1.4\nfrom-dotenv\n%%EOF\n"
+    assert (pdfs_dir / "right-HEAD-artifact.pdf").read_bytes() == b"%PDF-1.4\nfrom-dotenv\n%%EOF\n"
+
+
 def docker_is_available() -> bool:
     try:
         result = subprocess.run(

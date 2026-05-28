@@ -29,6 +29,8 @@ class DiffRunner:
         try:
             add_worktree(cfg.repo, left_tree, left_sha)
             add_worktree(cfg.repo, right_tree, right_sha)
+            self.copy_local_paths(left_tree)
+            self.copy_local_paths(right_tree)
             left_pdf = self.build_one("left", cfg.left_ref, left_tree)
             right_pdf = self.build_one("right", cfg.right_ref, right_tree)
             if cfg.no_diff:
@@ -39,6 +41,22 @@ class DiffRunner:
             if not cfg.keep_worktrees:
                 remove_worktree(cfg.repo, left_tree)
                 remove_worktree(cfg.repo, right_tree)
+
+    def copy_local_paths(self, worktree: Path) -> None:
+        cfg = self.config
+        for relative_path in cfg.copy_paths:
+            source = cfg.repo / relative_path
+            destination = worktree / relative_path
+            if not source.exists():
+                raise DiffPdfCommitsError(f"Cannot copy missing path into worktree: {source}")
+            if source.is_dir():
+                if destination.exists():
+                    shutil.rmtree(destination)
+                shutil.copytree(source, destination)
+            else:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination)
+            print(f"Copied into worktree: {relative_path}")
 
     def build_one(self, side: str, ref: str, worktree: Path) -> Path:
         cfg = self.config

@@ -73,13 +73,23 @@ diff-pdf-commits HEAD~1 HEAD \
   --env UV_PYTHON=/path/to/python
 ```
 
+Copy local ignored files needed by the build into each temporary worktree:
+
+```bash
+diff-pdf-commits HEAD~1 HEAD \
+  --build "task build" \
+  --pdf thesis.pdf \
+  --copy .env
+```
+
 On Windows this is useful when another application ships a `python.exe` earlier on `PATH`:
 
 ```powershell
 uvx --from git+https://github.com/ethercod3/diff-pdf-commits diff-pdf-commits HEAD~1 HEAD `
-  --build "task latex:local" `
-  --pdf thesis.pdf `
-  --env "UV_PYTHON=C:\Users\User\AppData\Local\Programs\Python\Python313\python.exe"
+  --build "task build" `
+  --pdf "Куприянов_И221_диплом.pdf" `
+  --env "UV_PYTHON=C:\Users\User\AppData\Local\Programs\Python\Python313\python.exe" `
+  --copy .env
 ```
 
 Use it from the original diploma project:

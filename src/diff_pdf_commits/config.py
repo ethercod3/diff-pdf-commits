@@ -15,6 +15,12 @@ def parse_env_option(value: str) -> tuple[str, str]:
     return key, env_value
 
 
+def validate_relative_copy_path(path: Path) -> Path:
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError("expected a relative path inside the repository")
+    return path
+
+
 @dataclass(frozen=True)
 class DiffConfig:
     repo: Path
@@ -29,6 +35,7 @@ class DiffConfig:
     keep_worktrees: bool
     dirty: str
     build_env: dict[str, str]
+    copy_paths: tuple[Path, ...]
 
     @property
     def run_dir(self) -> Path:

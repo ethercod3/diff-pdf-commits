@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from diff_pdf_commits.config import parse_env_option, safe_label
+from pathlib import Path
+
+from diff_pdf_commits.config import parse_env_option, safe_label, validate_relative_copy_path
 from diff_pdf_commits.process import decode_output
 
 
@@ -24,3 +26,15 @@ def test_parse_env_option_rejects_missing_key_or_separator() -> None:
         parse_env_option("UV_PYTHON")
     with pytest.raises(ValueError):
         parse_env_option("=value")
+
+
+def test_validate_relative_copy_path_accepts_repo_relative_path() -> None:
+    assert validate_relative_copy_path(Path(".env")) == Path(".env")
+    assert validate_relative_copy_path(Path("config/local.env")) == Path("config/local.env")
+
+
+def test_validate_relative_copy_path_rejects_absolute_or_parent_paths() -> None:
+    with pytest.raises(ValueError):
+        validate_relative_copy_path(Path.cwd() / ".env")
+    with pytest.raises(ValueError):
+        validate_relative_copy_path(Path("../.env"))

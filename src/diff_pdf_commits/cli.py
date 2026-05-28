@@ -5,7 +5,7 @@ import sys
 
 import click
 
-from .config import DiffConfig, parse_env_option, safe_label
+from .config import DiffConfig, parse_env_option, safe_label, validate_relative_copy_path
 from .errors import DiffPdfCommitsError
 from .git import git_root
 from .runner import DiffRunner
@@ -36,6 +36,14 @@ from .runner import DiffRunner
     metavar="KEY=VALUE",
     help="Environment variable passed to the build command. Can be used more than once.",
 )
+@click.option(
+    "--copy",
+    "copy_paths",
+    multiple=True,
+    type=click.Path(path_type=Path),
+    metavar="PATH",
+    help="Copy a local file or directory into each worktree before building. Path is relative to repo root.",
+)
 def main(
     left_ref: str,
     right_ref: str,
@@ -49,6 +57,7 @@ def main(
     keep_worktrees: bool,
     dirty: str,
     env_options: tuple[str, ...],
+    copy_paths: tuple[Path, ...],
 ) -> None:
     """Build PDF from LEFT_REF and RIGHT_REF, then compare them with diff-pdf."""
     try:
@@ -60,6 +69,12 @@ def main(
             except ValueError as error:
                 raise DiffPdfCommitsError(f"Invalid --env {env_option!r}: {error}") from error
             build_env[key] = value
+        validated_copy_paths: list[Path] = []
+        for copy_path in copy_paths:
+            try:
+                validated_copy_paths.append(validate_relative_copy_path(copy_path))
+            except ValueError as error:
+                raise DiffPdfCommitsError(f"Invalid --copy {str(copy_path)!r}: {error}") from error
 
         if not output_dir.is_absolute():
             output_dir = repo_root / output_dir
@@ -81,6 +96,7 @@ def main(
             keep_worktrees=keep_worktrees,
             dirty=dirty,
             build_env=build_env,
+            copy_paths=tuple(validated_copy_paths),
         )
         raise SystemExit(DiffRunner(config).run())
     except DiffPdfCommitsError as error:

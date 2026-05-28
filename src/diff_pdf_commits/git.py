@@ -15,9 +15,7 @@ def git_root(cwd: Path) -> Path:
 def require_clean_worktree(repo: Path) -> None:
     result = run_command(["git", "status", "--porcelain"], cwd=repo)
     if result.stdout.strip():
-        raise DiffPdfCommitsError(
-            "The git worktree has uncommitted changes. Commit/stash them, or pass --dirty allow."
-        )
+        raise DiffPdfCommitsError("The git worktree has uncommitted changes. Commit/stash them, or pass --dirty allow.")
 
 
 def resolve_commit(repo: Path, ref: str) -> str:
