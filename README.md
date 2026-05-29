@@ -6,7 +6,7 @@ This repository was extracted from a diploma LaTeX project where the original he
 
 ## Status
 
-Alpha scaffold. The MVP is implemented, but the first real repository should still be tested against a throwaway Git repo before publishing.
+Alpha. The MVP is implemented and covered by integration tests that build fake PDFs from temporary Git repositories. Before the first release, the main remaining work is real-project testing, packaging metadata polish, and deciding which console command should be canonical.
 
 ## Install and Run
 
@@ -28,6 +28,12 @@ Local development:
 uv sync --extra dev
 uv run diff-pdf-commits --help
 uv run pytest
+```
+
+Docker-based integration tests are opt-in because they need Docker and may pull images:
+
+```bash
+DIFF_PDF_COMMITS_RUN_DOCKER_TESTS=1 uv run pytest
 ```
 
 Run the local checkout through `uvx`, the same way another repository would consume it:
@@ -128,18 +134,26 @@ Required for visual comparison:
 
 - `diff-pdf` on `PATH`
 
+`diff-pdf` is optional when you pass `--no-diff`; in that mode the tool only builds both revisions and exports the resulting PDFs.
+
+Common `diff-pdf` installation options:
+
+- Windows: install a build that provides `diff-pdf.exe`, then add it to `PATH`.
+- macOS: use Homebrew if your taps provide `diff-pdf`, or install from the upstream project.
+- Linux: install the `diff-pdf` package from your distribution if available, or build it from source.
+
 ## Important Design Decisions
 
 - The build command is a shell command by design. This is practical for `task`, `make`, `latexmk`, Docker Compose, Typst, etc. Do not pass untrusted strings to `--build`.
 - The PDF path is explicit and relative to each checked-out worktree root.
 - The current worktree is not mutated; temporary `git worktree` checkouts are used instead.
 - Build logs are saved under `.pdf-diff/.../logs`.
+- Local files needed by the build, such as ignored `.env` files, can be copied into both worktrees with `--copy`.
+- Build-specific environment variables can be passed with repeated `--env KEY=VALUE` options.
 
 ## Next Steps Before Publishing
 
-- Add integration tests that create a temporary git repo and build fake PDFs.
 - Decide whether the canonical command should be `diff-pdf-commits` or `pdf-commit-diff`; both entry points currently exist.
-- Add GitHub Actions for Linux, Windows, and macOS.
-- Consider `--env KEY=VALUE` for build commands.
+- Test the CLI against at least one real LaTeX/Typst repository on Windows and Linux.
 - Consider `--timeout` for long builds.
 - Consider alternative backends such as ImageMagick or plain export-only mode.
