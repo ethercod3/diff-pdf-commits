@@ -25,6 +25,9 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Clean distributions
+        run: rm -rf dist
+
       - name: Build distributions
         run: uv build
 
