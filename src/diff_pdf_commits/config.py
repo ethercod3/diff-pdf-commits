@@ -15,7 +15,7 @@ def parse_env_option(value: str) -> tuple[str, str]:
     return key, env_value
 
 
-def validate_relative_copy_path(path: Path) -> Path:
+def validate_repo_relative_path(path: Path) -> Path:
     if path.is_absolute() or ".." in path.parts:
         raise ValueError("expected a relative path inside the repository")
     return path

@@ -5,7 +5,7 @@ import sys
 
 import click
 
-from .config import DiffConfig, parse_env_option, safe_label, validate_relative_copy_path
+from .config import DiffConfig, parse_env_option, safe_label, validate_repo_relative_path
 from .errors import DiffPdfCommitsError
 from .git import git_root
 from .runner import DiffRunner
@@ -69,10 +69,16 @@ def main(
             except ValueError as error:
                 raise DiffPdfCommitsError(f"Invalid --env {env_option!r}: {error}") from error
             build_env[key] = value
+
+        try:
+            pdf_path = validate_repo_relative_path(pdf_path)
+        except ValueError as error:
+            raise DiffPdfCommitsError(f"Invalid --pdf {str(pdf_path)!r}: {error}") from error
+
         validated_copy_paths: list[Path] = []
         for copy_path in copy_paths:
             try:
-                validated_copy_paths.append(validate_relative_copy_path(copy_path))
+                validated_copy_paths.append(validate_repo_relative_path(copy_path))
             except ValueError as error:
                 raise DiffPdfCommitsError(f"Invalid --copy {str(copy_path)!r}: {error}") from error
 
