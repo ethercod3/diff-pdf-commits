@@ -1,125 +1,63 @@
 # diff-pdf-commits
 
-Build the same PDF from two git commits and compare the results with `diff-pdf`.
+[![CI](https://github.com/ethercod3/diff-pdf-commits/actions/workflows/ci.yml/badge.svg)](https://github.com/ethercod3/diff-pdf-commits/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/ethercod3/diff-pdf-commits/blob/main/LICENSE)
+[![Run with uvx](https://img.shields.io/badge/run%20with-uvx-5E5CE6)](https://docs.astral.sh/uv/guides/tools/)
 
-This repository was extracted from a diploma LaTeX project where the original helper compared generated PDFs between commits. The standalone version is intentionally project-agnostic: it does not know about LaTeX, Docker, Taskfile, or a specific PDF name. You pass the build command and the PDF path explicitly.
+Compare PDFs produced by two Git revisions.
 
-## Status
+`diff-pdf-commits` creates temporary detached worktrees for two refs, runs your PDF build command in each worktree, copies the requested PDF artifacts, and optionally runs `diff-pdf` to produce a visual diff.
 
-Alpha. The MVP is implemented and covered by integration tests that build fake PDFs from temporary Git repositories. Before the first release, the main remaining work is real-project testing, packaging metadata polish, and deciding which console command should be canonical.
+It is intentionally build-system agnostic. Use it with LaTeX, Typst, Make, Task, Docker Compose, or any other command that can build a PDF from a checked-out Git tree.
 
-## Install and Run
+## Features
 
-From a published package:
+- Builds the same PDF from two Git refs without changing your current checkout.
+- Uses `git worktree` instead of `git checkout`, so your working tree is not mutated.
+- Accepts any shell build command through `--build`.
+- Exports both generated PDFs for inspection.
+- Can save a visual diff PDF with `diff-pdf`.
+- Can open the `diff-pdf` GUI viewer.
+- Supports extra build environment variables with `--env`.
+- Supports copying local ignored files, such as `.env`, into both worktrees with `--copy`.
+- Refuses dirty worktrees by default, with an explicit `--dirty allow` override.
 
-```bash
-uvx diff-pdf-commits HEAD~1 HEAD --build "latexmk -lualatex main.tex" --pdf main.pdf
-```
+## Installation
 
-From GitHub before publishing to PyPI:
-
-```bash
-uvx --from git+https://github.com/ethercod3/diff-pdf-commits diff-pdf-commits HEAD~1 HEAD --build "task latex:local" --pdf thesis.pdf
-```
-
-Local development:
-
-```bash
-uv sync --extra dev
-uv run diff-pdf-commits --help
-uv run pytest
-```
-
-Docker-based integration tests are opt-in because they need Docker and may pull images:
+Run directly from GitHub with `uvx`:
 
 ```bash
-DIFF_PDF_COMMITS_RUN_DOCKER_TESTS=1 uv run pytest
+uvx --from git+https://github.com/ethercod3/diff-pdf-commits diff-pdf-commits HEAD~1 HEAD \
+  --build "latexmk -pdf main.tex" \
+  --pdf main.pdf
 ```
 
-Run the local checkout through `uvx`, the same way another repository would consume it:
+After the package is published to PyPI, run it directly with `uvx`:
 
 ```bash
-uvx --from . diff-pdf-commits HEAD~1 HEAD --build "make pdf" --pdf build/main.pdf
+uvx diff-pdf-commits HEAD~1 HEAD --build "latexmk -pdf main.tex" --pdf main.pdf
 ```
 
-From another local repository before publishing:
+Or install it with `pipx`:
 
 ```bash
-uvx --from ../diff-pdf-commits diff-pdf-commits HEAD~1 HEAD --build "task latex:local" --pdf thesis.pdf
+pipx install diff-pdf-commits
 ```
 
-## Basic Usage
-
-Save a visual diff PDF:
+Or install it with `pip`:
 
 ```bash
-diff-pdf-commits HEAD~1 HEAD \
-  --build "task latex:local" \
-  --pdf "thesis.pdf"
+python -m pip install diff-pdf-commits
 ```
 
-Open the `diff-pdf` GUI viewer:
+Run from a local checkout:
 
 ```bash
-diff-pdf-commits v1 v2 --build "make pdf" --pdf build/main.pdf --view
+uvx --from . diff-pdf-commits HEAD~1 HEAD \
+  --build "make pdf" \
+  --pdf build/main.pdf
 ```
-
-Only build and export both PDFs without running `diff-pdf`:
-
-```bash
-diff-pdf-commits main feature/pdf-change --build "latexmk -pdf main.tex" --pdf main.pdf --no-diff
-```
-
-Pass environment variables to the build command:
-
-```bash
-diff-pdf-commits HEAD~1 HEAD \
-  --build "task latex:local" \
-  --pdf thesis.pdf \
-  --env UV_PYTHON=/path/to/python
-```
-
-Copy local ignored files needed by the build into each temporary worktree:
-
-```bash
-diff-pdf-commits HEAD~1 HEAD \
-  --build "task build" \
-  --pdf thesis.pdf \
-  --copy .env
-```
-
-On Windows this is useful when another application ships a `python.exe` earlier on `PATH`:
-
-```powershell
-uvx --from git+https://github.com/ethercod3/diff-pdf-commits diff-pdf-commits HEAD~1 HEAD `
-  --build "task build" `
-  --pdf "Куприянов_И221_диплом.pdf" `
-  --env "UV_PYTHON=C:\Users\User\AppData\Local\Programs\Python\Python313\python.exe" `
-  --copy .env
-```
-
-Use it from the original diploma project:
-
-```bash
-uvx --from ../diff-pdf-commits diff-pdf-commits HEAD~1 HEAD \
-  --build "task latex:local" \
-  --pdf "Куприянов_И221_диплом.pdf" \
-  --out ".pdf-diff"
-```
-
-## How It Works
-
-1. Finds the git repository root.
-2. Refuses to run on a dirty worktree by default.
-3. Creates two detached temporary git worktrees under `.pdf-diff/.../worktrees`.
-4. Runs the provided build command in each worktree.
-5. Copies the requested PDF from each worktree into `.pdf-diff/.../pdfs`.
-6. Runs `diff-pdf` unless `--no-diff` is passed.
-7. Removes temporary worktrees unless `--keep-worktrees` is passed.
-
-The current working tree is not checked out to another commit. That is the main design improvement over the original project-local script.
-
-Build output is streamed live to the terminal and also saved under `.pdf-diff/.../logs`. The CLI shows a progress bar for the high-level steps: worktree creation, copied local files, left/right builds, diff generation, and cleanup.
 
 ## Requirements
 
@@ -127,33 +65,154 @@ Required:
 
 - Python 3.10+
 - Git
-- `uv` if you want `uvx`
-- whatever your build command needs
+- The tools needed by your build command
 
-Required for visual comparison:
+Optional:
 
-- `diff-pdf` on `PATH`
+- `diff-pdf` on `PATH` for visual comparison
+- `uv` if you want to run the package with `uvx`
 
-`diff-pdf` is optional when you pass `--no-diff`; in that mode the tool only builds both revisions and exports the resulting PDFs.
+`diff-pdf` is not required when using `--no-diff`; in that mode the command only builds both revisions and exports the generated PDFs.
 
-Common `diff-pdf` installation options:
+## Usage
 
-- Windows: install a build that provides `diff-pdf.exe`, then add it to `PATH`.
-- macOS: use Homebrew if your taps provide `diff-pdf`, or install from the upstream project.
-- Linux: install the `diff-pdf` package from your distribution if available, or build it from source.
+Save a visual diff PDF:
 
-## Important Design Decisions
+```bash
+diff-pdf-commits HEAD~1 HEAD \
+  --build "latexmk -pdf main.tex" \
+  --pdf main.pdf
+```
 
-- The build command is a shell command by design. This is practical for `task`, `make`, `latexmk`, Docker Compose, Typst, etc. Do not pass untrusted strings to `--build`.
-- The PDF path is explicit and relative to each checked-out worktree root.
-- The current worktree is not mutated; temporary `git worktree` checkouts are used instead.
-- Build logs are saved under `.pdf-diff/.../logs`.
-- Local files needed by the build, such as ignored `.env` files, can be copied into both worktrees with `--copy`.
-- Build-specific environment variables can be passed with repeated `--env KEY=VALUE` options.
+Only build both revisions and export the PDFs:
 
-## Next Steps Before Publishing
+```bash
+diff-pdf-commits v1.0.0 HEAD \
+  --build "typst compile main.typ main.pdf" \
+  --pdf main.pdf \
+  --no-diff
+```
 
-- Decide whether the canonical command should be `diff-pdf-commits` or `pdf-commit-diff`; both entry points currently exist.
-- Test the CLI against at least one real LaTeX/Typst repository on Windows and Linux.
-- Consider `--timeout` for long builds.
-- Consider alternative backends such as ImageMagick or plain export-only mode.
+Open the `diff-pdf` viewer:
+
+```bash
+diff-pdf-commits main feature/report-layout \
+  --build "make pdf" \
+  --pdf build/report.pdf \
+  --view
+```
+
+Write the visual diff to a specific path:
+
+```bash
+diff-pdf-commits HEAD~1 HEAD \
+  --build "task pdf" \
+  --pdf dist/report.pdf \
+  --diff-output review/report-diff.pdf
+```
+
+Pass environment variables to the build:
+
+```bash
+diff-pdf-commits HEAD~1 HEAD \
+  --build "task pdf" \
+  --pdf report.pdf \
+  --env TEXMFVAR=.tex-cache \
+  --env SOURCE_DATE_EPOCH=0
+```
+
+Copy local files into both worktrees before building:
+
+```bash
+diff-pdf-commits HEAD~1 HEAD \
+  --build "task pdf" \
+  --pdf report.pdf \
+  --copy .env \
+  --copy config/local.json
+```
+
+Allow a dirty current worktree:
+
+```bash
+diff-pdf-commits HEAD~1 HEAD \
+  --build "make pdf" \
+  --pdf build/main.pdf \
+  --dirty allow
+```
+
+Keep temporary worktrees for debugging:
+
+```bash
+diff-pdf-commits HEAD~1 HEAD \
+  --build "make pdf" \
+  --pdf build/main.pdf \
+  --keep-worktrees
+```
+
+## Output
+
+By default, artifacts are written under `.pdf-diff/<left>__<right>/`:
+
+```text
+.pdf-diff/
+  HEAD_1__HEAD/
+    logs/
+      build-left.log
+      build-right.log
+    pdfs/
+      left-HEAD_1-main.pdf
+      right-HEAD-main.pdf
+    worktrees/
+      left/
+      right/
+```
+
+Temporary worktrees are removed after the run unless `--keep-worktrees` is passed. Build logs and copied PDFs are kept.
+
+## Command Reference
+
+```text
+Usage: diff-pdf-commits [OPTIONS] LEFT_REF RIGHT_REF
+
+Options:
+  --build TEXT          Shell command that builds the PDF in each worktree.
+  --pdf PATH            PDF path relative to repo root.
+  --repo PATH           Path inside the git repository.
+  --out PATH            Output directory.
+  --diff-output PATH    Write visual diff PDF to this path.
+  --view / --no-view    Open diff-pdf GUI viewer.
+  --no-diff             Only build and export both PDFs; do not run diff-pdf.
+  --keep-worktrees      Keep temporary git worktrees for debugging.
+  --dirty [fail|allow]  Refuse or allow a dirty current worktree.
+  --env KEY=VALUE       Environment variable passed to the build command.
+  --copy PATH           Copy a local file or directory into each worktree.
+  -h, --help            Show help.
+```
+
+There is also a `pdf-commit-diff` console script that points to the same command.
+
+## Security
+
+`--build` is executed as a shell command in each temporary worktree. This is deliberate, because real PDF projects commonly use commands such as `make pdf`, `task pdf`, `latexmk`, `typst`, or `docker compose`.
+
+Do not pass untrusted build strings.
+
+## Development
+
+```bash
+uv sync --extra dev
+uv run black --check --diff src tests
+uv run pytest
+```
+
+Docker-based integration tests are opt-in:
+
+```bash
+DIFF_PDF_COMMITS_RUN_DOCKER_TESTS=1 uv run pytest
+```
+
+Run the local checkout through `uvx`:
+
+```bash
+uvx --from . diff-pdf-commits HEAD~1 HEAD --build "make pdf" --pdf build/main.pdf
+```
