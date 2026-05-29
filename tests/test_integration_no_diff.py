@@ -246,6 +246,77 @@ def test_no_diff_copies_local_file_into_each_worktree_before_build(tmp_path: Pat
     assert (pdfs_dir / "right-HEAD-artifact.pdf").read_bytes() == b"%PDF-1.4\nfrom-dotenv\n%%EOF\n"
 
 
+def test_no_diff_can_load_build_pdf_env_and_copy_from_config(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    init_repo(repo)
+
+    (repo / ".env").write_text(
+        "\n".join(
+            [
+                "PDF_TEST_PAYLOAD=from-config-env-file",
+                "TARGET=artifact.tex",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (repo / ".gitignore").write_text(".env\n", encoding="utf-8")
+    (repo / "build.py").write_text(
+        "\n".join(
+            [
+                "import os",
+                "from pathlib import Path",
+                "payload = os.environ['PDF_TEST_PAYLOAD'].encode('utf-8')",
+                "Path('artifact.pdf').write_bytes(b'%PDF-1.4\\n' + payload + b'\\n%%EOF\\n')",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (repo / "diff_config.toml").write_text(
+        "\n".join(
+            [
+                "[diff_pdf]",
+                f"build = '\"{sys.executable}\" build.py'",
+                'env_file = ".env"',
+                "pdf_from_target = true",
+                "no_diff = true",
+                "",
+                "[diff_pdf.env]",
+                'PDF_TEST_PAYLOAD = { from_env = "PDF_TEST_PAYLOAD" }',
+                "",
+                "[diff_pdf.copy]",
+                'paths = [".env"]',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    commit(repo, "left")
+    (repo / "marker.txt").write_text("right\n", encoding="utf-8")
+    commit(repo, "right")
+
+    output_dir = tmp_path / "out"
+    result = CliRunner().invoke(
+        main,
+        [
+            "HEAD~1",
+            "HEAD",
+            "--repo",
+            str(repo),
+            "--config",
+            "diff_config.toml",
+            "--out",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    pdfs_dir = output_dir / "HEAD_1__HEAD" / "pdfs"
+    assert (pdfs_dir / "left-HEAD_1-artifact.pdf").read_bytes() == b"%PDF-1.4\nfrom-config-env-file\n%%EOF\n"
+    assert (pdfs_dir / "right-HEAD-artifact.pdf").read_bytes() == b"%PDF-1.4\nfrom-config-env-file\n%%EOF\n"
+
+
 def docker_is_available() -> bool:
     if os.environ.get("DIFF_PDF_COMMITS_RUN_DOCKER_TESTS") != "1":
         return False

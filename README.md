@@ -134,6 +134,12 @@ diff-pdf-commits HEAD~1 HEAD \
   --copy config/local.json
 ```
 
+Load project defaults from a TOML config:
+
+```bash
+diff-pdf-commits HEAD~1 HEAD --config diff_config.toml
+```
+
 Allow a dirty current worktree:
 
 ```bash
@@ -193,6 +199,44 @@ Options:
 ```
 
 There is also a `pdf-commit-diff` console script that points to the same command.
+
+## Config File
+
+Use `--config` when a repository needs a repeatable build command, environment, copied local files, or a PDF name derived from `TARGET`.
+
+```toml
+[diff_pdf]
+build = "docker compose --profile latex run --build --rm latex"
+env_file = ".env"
+pdf_from_target = true
+view = true
+
+[diff_pdf.env]
+PYTHONIOENCODING = "utf-8"
+PYTHONUTF8 = "1"
+TARGET = { from_env = "TARGET" }
+VAULT_PATH = { from_env = "VAULT_PATH" }
+VAULT_OS_PATH = { from_env = "VAULT_OS_PATH", resolve = true }
+
+[diff_pdf.copy]
+paths = [
+  ".env",
+  "docker-compose.yaml",
+  "docker/latex.dockerfile",
+]
+```
+
+Supported `[diff_pdf]` keys:
+
+- `build`: shell command to run in each worktree.
+- `pdf`: PDF path, or `{ from_env = "TARGET", replace_suffix = ".pdf" }`.
+- `pdf_from_target`: shorthand for deriving the PDF path from `TARGET`.
+- `env_file`: optional `.env`-style file used for config expansion.
+- `out`, `diff_output`, `view`, `no_diff`, `keep_worktrees`, `dirty`.
+- `[diff_pdf.env]`: build environment values. Values may be strings or `{ from_env = "...", default = "...", resolve = true }`.
+- `[diff_pdf.copy] paths`: files or directories copied into both worktrees before building.
+
+Command-line options override config values. Repeated `--env` values override matching `[diff_pdf.env]` keys; repeated `--copy` values are appended.
 
 ## Security
 
