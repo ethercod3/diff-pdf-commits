@@ -1,6 +1,7 @@
 # diff-pdf-commits
 
 [![CI](https://github.com/ethercod3/diff-pdf-commits/actions/workflows/ci.yml/badge.svg)](https://github.com/ethercod3/diff-pdf-commits/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/diff-pdf-commits.svg)](https://pypi.org/project/diff-pdf-commits/)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/ethercod3/diff-pdf-commits/blob/main/LICENSE)
 [![Run with uvx](https://img.shields.io/badge/run%20with-uvx-5E5CE6)](https://docs.astral.sh/uv/guides/tools/)
@@ -25,27 +26,21 @@ It is intentionally build-system agnostic. Use it with LaTeX, Typst, Make, Task,
 
 ## Installation
 
-Run directly from GitHub with `uvx`:
+Run directly with `uvx`:
 
 ```bash
-uvx --from git+https://github.com/ethercod3/diff-pdf-commits diff-pdf-commits HEAD~1 HEAD \
+uvx diff-pdf-commits HEAD~1 HEAD \
   --build "latexmk -pdf main.tex" \
   --pdf main.pdf
 ```
 
-After the package is published to PyPI, run it directly with `uvx`:
-
-```bash
-uvx diff-pdf-commits HEAD~1 HEAD --build "latexmk -pdf main.tex" --pdf main.pdf
-```
-
-Or install it with `pipx`:
+Install it with `pipx`:
 
 ```bash
 pipx install diff-pdf-commits
 ```
 
-Or install it with `pip`:
+Install it with `pip`:
 
 ```bash
 python -m pip install diff-pdf-commits
@@ -55,6 +50,14 @@ Run from a local checkout:
 
 ```bash
 uvx --from . diff-pdf-commits HEAD~1 HEAD \
+  --build "make pdf" \
+  --pdf build/main.pdf
+```
+
+Run from GitHub source:
+
+```bash
+uvx --from git+https://github.com/ethercod3/diff-pdf-commits diff-pdf-commits HEAD~1 HEAD \
   --build "make pdf" \
   --pdf build/main.pdf
 ```

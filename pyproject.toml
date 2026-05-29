@@ -27,6 +27,12 @@ dependencies = [
   "rich>=13,<15",
 ]
 
+[project.urls]
+Homepage = "https://github.com/ethercod3/diff-pdf-commits"
+Repository = "https://github.com/ethercod3/diff-pdf-commits"
+Issues = "https://github.com/ethercod3/diff-pdf-commits/issues"
+Changelog = "https://github.com/ethercod3/diff-pdf-commits/releases"
+
 [project.optional-dependencies]
 dev = [
   "black==26.3.1",
