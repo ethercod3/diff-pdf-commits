@@ -7,7 +7,7 @@ import subprocess
 import sys
 import uuid
 
-from click.testing import CliRunner
+from click.testing import CliRunner, Result
 import pytest
 
 from diff_pdf_commits.cli import main
@@ -24,6 +24,13 @@ def git(repo: Path, *args: str) -> None:
         errors="replace",
     )
     assert result.returncode == 0, result.stderr or result.stdout
+
+
+def init_repo(repo: Path) -> None:
+    repo.mkdir()
+    git(repo, "init")
+    git(repo, "config", "user.email", "test@example.invalid")
+    git(repo, "config", "user.name", "Test User")
 
 
 def write_build_script(repo: Path, content: bytes) -> None:
@@ -44,21 +51,19 @@ def commit(repo: Path, message: str) -> None:
     git(repo, "commit", "-m", message)
 
 
-def test_no_diff_exports_built_pdfs_from_both_refs(tmp_path: Path) -> None:
+def make_two_revision_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
-    repo.mkdir()
-    git(repo, "init")
-    git(repo, "config", "user.email", "test@example.invalid")
-    git(repo, "config", "user.name", "Test User")
-
+    init_repo(repo)
     write_build_script(repo, b"%PDF-1.4\nleft\n%%EOF\n")
     commit(repo, "left")
     write_build_script(repo, b"%PDF-1.4\nright\n%%EOF\n")
     commit(repo, "right")
+    return repo
 
-    output_dir = tmp_path / "out"
+
+def run_no_diff(repo: Path, output_dir: Path, *extra_args: str, pdf_path: str = "artifact.pdf") -> Result:
     build_command = f'"{sys.executable}" build.py'
-    result = CliRunner().invoke(
+    return CliRunner().invoke(
         main,
         [
             "HEAD~1",
@@ -68,12 +73,20 @@ def test_no_diff_exports_built_pdfs_from_both_refs(tmp_path: Path) -> None:
             "--build",
             build_command,
             "--pdf",
-            "artifact.pdf",
+            pdf_path,
             "--out",
             str(output_dir),
             "--no-diff",
+            *extra_args,
         ],
     )
+
+
+def test_no_diff_exports_built_pdfs_from_both_refs(tmp_path: Path) -> None:
+    repo = make_two_revision_repo(tmp_path)
+
+    output_dir = tmp_path / "out"
+    result = run_no_diff(repo, output_dir)
 
     assert result.exit_code == 0, result.output
     pdfs_dir = output_dir / "HEAD_1__HEAD" / "pdfs"
@@ -81,12 +94,63 @@ def test_no_diff_exports_built_pdfs_from_both_refs(tmp_path: Path) -> None:
     assert (pdfs_dir / "right-HEAD-artifact.pdf").read_bytes() == b"%PDF-1.4\nright\n%%EOF\n"
 
 
+def test_rejects_parent_relative_pdf_path(tmp_path: Path) -> None:
+    repo = make_two_revision_repo(tmp_path)
+
+    result = run_no_diff(repo, tmp_path / "out", pdf_path="../artifact.pdf")
+
+    assert result.exit_code == 2
+    assert "Invalid --pdf" in result.output
+
+
+def test_dirty_worktree_fails_by_default(tmp_path: Path) -> None:
+    repo = make_two_revision_repo(tmp_path)
+    (repo / "untracked.txt").write_text("dirty\n", encoding="utf-8")
+
+    result = run_no_diff(repo, tmp_path / "out")
+
+    assert result.exit_code == 2
+    assert "uncommitted changes" in result.output
+
+
+def test_dirty_allow_builds_despite_uncommitted_changes(tmp_path: Path) -> None:
+    repo = make_two_revision_repo(tmp_path)
+    (repo / "untracked.txt").write_text("dirty\n", encoding="utf-8")
+
+    output_dir = tmp_path / "out"
+    result = run_no_diff(repo, output_dir, "--dirty", "allow")
+
+    assert result.exit_code == 0, result.output
+    assert (output_dir / "HEAD_1__HEAD" / "pdfs" / "left-HEAD_1-artifact.pdf").is_file()
+
+
+def test_removes_worktrees_after_success_by_default(tmp_path: Path) -> None:
+    repo = make_two_revision_repo(tmp_path)
+    output_dir = tmp_path / "out"
+
+    result = run_no_diff(repo, output_dir)
+
+    assert result.exit_code == 0, result.output
+    worktrees_dir = output_dir / "HEAD_1__HEAD" / "worktrees"
+    assert not (worktrees_dir / "left").exists()
+    assert not (worktrees_dir / "right").exists()
+
+
+def test_keep_worktrees_preserves_debug_worktrees(tmp_path: Path) -> None:
+    repo = make_two_revision_repo(tmp_path)
+    output_dir = tmp_path / "out"
+
+    result = run_no_diff(repo, output_dir, "--keep-worktrees")
+
+    assert result.exit_code == 0, result.output
+    worktrees_dir = output_dir / "HEAD_1__HEAD" / "worktrees"
+    assert (worktrees_dir / "left" / "build.py").is_file()
+    assert (worktrees_dir / "right" / "build.py").is_file()
+
+
 def test_no_diff_passes_env_to_build_command(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
-    repo.mkdir()
-    git(repo, "init")
-    git(repo, "config", "user.email", "test@example.invalid")
-    git(repo, "config", "user.name", "Test User")
+    init_repo(repo)
 
     (repo / "build.py").write_text(
         "\n".join(
@@ -136,10 +200,7 @@ def test_no_diff_passes_env_to_build_command(tmp_path: Path) -> None:
 
 def test_no_diff_copies_local_file_into_each_worktree_before_build(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
-    repo.mkdir()
-    git(repo, "init")
-    git(repo, "config", "user.email", "test@example.invalid")
-    git(repo, "config", "user.name", "Test User")
+    init_repo(repo)
 
     (repo / ".gitignore").write_text(".env\n", encoding="utf-8")
     (repo / ".env").write_text("payload=from-dotenv\n", encoding="utf-8")
@@ -186,6 +247,8 @@ def test_no_diff_copies_local_file_into_each_worktree_before_build(tmp_path: Pat
 
 
 def docker_is_available() -> bool:
+    if os.environ.get("DIFF_PDF_COMMITS_RUN_DOCKER_TESTS") != "1":
+        return False
     try:
         result = subprocess.run(
             ["docker", "version", "--format", "{{.Server.Version}}"],
@@ -245,16 +308,16 @@ def docker_build_command(image_tag: str) -> str:
     return f'docker run --rm -v "{mount}" -w /work {image_tag} document.ms artifact.pdf'
 
 
-@pytest.mark.skipif(not docker_is_available(), reason="Docker daemon is not available")
+@pytest.mark.skipif(
+    not docker_is_available(),
+    reason="Docker integration tests require DIFF_PDF_COMMITS_RUN_DOCKER_TESTS=1 and Docker",
+)
 def test_no_diff_can_build_pdf_with_minimal_alpine_docker_image(tmp_path: Path) -> None:
     image_tag = build_docker_test_image()
     repo = tmp_path / "repo"
     output_dir = tmp_path / "out"
     try:
-        repo.mkdir()
-        git(repo, "init")
-        git(repo, "config", "user.email", "test@example.invalid")
-        git(repo, "config", "user.name", "Test User")
+        init_repo(repo)
 
         write_groff_document(repo, "Left PDF", "Generated from the left revision.")
         commit(repo, "left")
@@ -290,7 +353,10 @@ def test_no_diff_can_build_pdf_with_minimal_alpine_docker_image(tmp_path: Path) 
         subprocess.run(["docker", "image", "rm", "-f", image_tag], check=False, capture_output=True)
 
 
-@pytest.mark.skipif(not docker_is_available(), reason="Docker daemon is not available")
+@pytest.mark.skipif(
+    not docker_is_available(),
+    reason="Docker integration tests require DIFF_PDF_COMMITS_RUN_DOCKER_TESTS=1 and Docker",
+)
 @pytest.mark.skipif(not diff_pdf_is_available(), reason="diff-pdf is not available")
 def test_e2e_builds_two_commits_and_writes_visual_diff_with_docker(tmp_path: Path) -> None:
     image_tag = build_docker_test_image()
@@ -298,10 +364,7 @@ def test_e2e_builds_two_commits_and_writes_visual_diff_with_docker(tmp_path: Pat
     output_dir = tmp_path / "out"
     diff_output = output_dir / "visual-diff.pdf"
     try:
-        repo.mkdir()
-        git(repo, "init")
-        git(repo, "config", "user.email", "test@example.invalid")
-        git(repo, "config", "user.name", "Test User")
+        init_repo(repo)
 
         write_groff_document(
             repo,
